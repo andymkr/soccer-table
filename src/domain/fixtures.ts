@@ -3,6 +3,7 @@ import { createId } from './identity'
 import { validateLegCount, validateTeamCount } from './validation'
 
 type FixtureIdFactory = () => EntityId
+type RandomSource = () => number
 type Participant = EntityId | null
 
 interface Pairing {
@@ -24,20 +25,22 @@ export function generateRoundRobinFixtures(
   teams: readonly Team[],
   legCount: number,
   createFixtureId: FixtureIdFactory = createId,
+  random: RandomSource = Math.random,
 ): Match[] {
   assertValidInput(teams, legCount)
 
-  const rounds = balanceHomeAndAway(
-    createSingleLegRounds(teams.map(({ id }) => id)),
+  const teamIds = shuffle(
     teams.map(({ id }) => id),
+    random,
   )
+  const rounds = balanceHomeAndAway(createSingleLegRounds(teamIds), teamIds)
 
   return Array.from({ length: legCount }, (_, legIndex) => {
     const reverseHomeAndAway = legIndex % 2 === 1
     const legRounds = reverseHomeAndAway ? [...rounds].reverse() : rounds
 
     return legRounds.flatMap((pairings, roundIndex) =>
-      pairings.map((pairing) =>
+      shuffle(pairings, random).map((pairing) =>
         createMatch(
           pairing,
           legIndex + 1,
@@ -48,6 +51,24 @@ export function generateRoundRobinFixtures(
       ),
     )
   }).flat()
+}
+
+function shuffle<T>(values: readonly T[], random: RandomSource): T[] {
+  const shuffled = [...values]
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomValue = random()
+    if (randomValue < 0 || randomValue >= 1 || !Number.isFinite(randomValue)) {
+      throw new RangeError('Random source must return a value from 0 up to 1')
+    }
+
+    const swapIndex = Math.floor(randomValue * (index + 1))
+    const current = shuffled[index]
+    shuffled[index] = shuffled[swapIndex]!
+    shuffled[swapIndex] = current!
+  }
+
+  return shuffled
 }
 
 function assertValidInput(teams: readonly Team[], legCount: number): void {

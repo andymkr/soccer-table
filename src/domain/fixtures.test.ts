@@ -19,6 +19,29 @@ function generate(teams: Team[], legCount = 1): Match[] {
   )
 }
 
+function seededRandom(seed: number): () => number {
+  let state = seed >>> 0
+
+  return () => {
+    state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0
+    return state / 4_294_967_296
+  }
+}
+
+function generateWithSeed(
+  teams: Team[],
+  legCount: number,
+  seed: number,
+): Match[] {
+  let fixtureNumber = 0
+  return generateRoundRobinFixtures(
+    teams,
+    legCount,
+    () => `fixture-${++fixtureNumber}`,
+    seededRandom(seed),
+  )
+}
+
 function unorderedPair(match: Match): string {
   return [match.homeTeamId, match.awayTeamId].sort().join(':')
 }
@@ -39,6 +62,54 @@ function longestVenueRun(sequence: string): number {
 }
 
 describe('round-robin fixture generation', () => {
+  /**
+   * GIVEN the same eight-team roster and two distinct deterministic random draws
+   * WHEN a one-leg schedule is generated for each draw
+   * THEN the round pairings differ without relying on probabilistic assertions
+   */
+  it('varies the fixture draw for distinct seeded random sources', () => {
+    const teams = createTeams(8)
+    const firstDraw = generateWithSeed(teams, 1, 12_345)
+    const secondDraw = generateWithSeed(teams, 1, 98_765)
+    const schedule = (matches: readonly Match[]) =>
+      matches.map((match) => `${match.round}:${unorderedPair(match)}`)
+
+    expect(schedule(firstDraw)).not.toEqual(schedule(secondDraw))
+    expect(new Set(firstDraw.map(unorderedPair))).toHaveLength(28)
+    expect(new Set(secondDraw.map(unorderedPair))).toHaveLength(28)
+  })
+
+  /**
+   * GIVEN a seeded four-leg draw for an odd-sized roster
+   * WHEN corresponding pairings and venue sequences are inspected
+   * THEN every return fixture reverses its predecessor and venue runs remain bounded
+   */
+  it('preserves return fixtures and venue balance in a randomized multi-leg draw', () => {
+    const teams = createTeams(7)
+    const matches = generateWithSeed(teams, 4, 42)
+
+    for (const firstMatch of matches.filter(({ leg }) => leg === 1)) {
+      for (const returnLeg of [2, 4]) {
+        expect(
+          matches.find(
+            (match) =>
+              match.leg === returnLeg &&
+              unorderedPair(match) === unorderedPair(firstMatch),
+          ),
+        ).toMatchObject({
+          homeTeamId: firstMatch.awayTeamId,
+          awayTeamId: firstMatch.homeTeamId,
+        })
+      }
+    }
+
+    for (const team of teams) {
+      expect(
+        longestVenueRun(venueSequence(matches, team.id)),
+      ).toBeLessThanOrEqual(2)
+    }
+  })
+
   /**
    * GIVEN four teams and one leg
    * WHEN fixtures are generated

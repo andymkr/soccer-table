@@ -262,6 +262,41 @@ describe('season team, fixture, and result lifecycle', () => {
   })
 
   /**
+   * GIVEN an unplayed season and two deterministic fixture draws for the same roster
+   * WHEN the store regenerates its fixtures
+   * THEN it replaces the original draw with a different valid round schedule
+   */
+  it('redraws the schedule when fixtures are regenerated', () => {
+    const randomSpy = vi.spyOn(Math, 'random')
+    randomSpy.mockImplementation(seededRandom(1))
+    const { seasonStore, season } = createSeason()
+    seasonStore.setTeamsFromBulkInput(
+      season.id,
+      'Alpha\nBravo\nCharlie\nDelta\nEcho\nFoxtrot',
+    )
+    seasonStore.generateFixtures(season.id, 2)
+    const originalDraw = roundPairings(season.matches)
+
+    randomSpy.mockImplementation(seededRandom(2))
+    expect(seasonStore.regenerateFixtures(season.id)).toMatchObject({
+      success: true,
+    })
+
+    expect(roundPairings(season.matches)).not.toEqual(originalDraw)
+    for (let leg = 1; leg <= 2; leg += 1) {
+      expect(
+        new Set(
+          season.matches
+            .filter((match) => match.leg === leg)
+            .map((match) =>
+              [match.homeTeamId, match.awayTeamId].sort().join(':'),
+            ),
+        ),
+      ).toHaveLength(15)
+    }
+  })
+
+  /**
    * GIVEN a completed tied season with locked random order
    * WHEN a score is cleared and makes the season incomplete
    * THEN result mutation invalidates the stale random tiebreaker locks
@@ -386,4 +421,24 @@ function cloneLocks(
   locks: readonly RandomTiebreakerLock[],
 ): RandomTiebreakerLock[] {
   return JSON.parse(JSON.stringify(locks)) as RandomTiebreakerLock[]
+}
+
+function seededRandom(seed: number): () => number {
+  let state = seed >>> 0
+
+  return () => {
+    state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0
+    return state / 4_294_967_296
+  }
+}
+
+function roundPairings(
+  matches: readonly Season['matches'][number][],
+): string[] {
+  return matches.map(
+    (match) =>
+      `${match.leg}:${match.round}:${[match.homeTeamId, match.awayTeamId]
+        .sort()
+        .join(':')}`,
+  )
 }
