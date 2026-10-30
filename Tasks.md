@@ -323,3 +323,24 @@ Complete these tasks in order. Browser builds must use the application's version
   - Add component tests with GIVEN-WHEN-THEN JSDoc that inspect the actual rendered editable elements in season setup, regeneration, naming dialogs, and fixture result entry and confirm spellchecking is disabled.
   - Add an automated regression guard covering all rendered editable controls so a newly introduced text field fails verification unless it inherits or explicitly declares disabled spellchecking.
   - Use Playwright MCP to verify representative text fields in the browser renderer, then smoke-test the same behavior in the Tauri host on macOS.
+
+## Fixture Generation Variety
+
+- [x] **T35 — Randomize the round-robin fixture draw on each generation**
+  - Depends on T18.
+  - Randomize the team ordering used to construct a fixture schedule so generating or regenerating fixtures for the same roster does not repeatedly begin with the same predictable pairings, such as first-versus-last and second-versus-second-last.
+  - Vary the ordering of rounds and fixtures where possible so subsequent legs are not presented as a mechanically ordered copy of the first leg, while still ensuring that every pair meets exactly once per leg.
+  - Preserve reversed home/away assignments for corresponding return fixtures and retain the existing home/away balance guarantees, including no runs longer than two matches on the same side.
+  - Preserve all existing guarantees for even and odd team counts, hidden BYEs, round participation, pair uniqueness, 1–4 legs, default result/card fields, and safe destructive-regeneration confirmation.
+  - Make the source of randomness injectable so tests remain deterministic, and verify that distinct seeded draws can produce different valid schedules without relying on flaky probability assertions.
+  - Add focused fixture-generator and season-store tests with GIVEN-WHEN-THEN JSDoc for varied draws, invariant preservation, multi-leg return fixtures, regeneration, and boundary rosters, then run the complete project check.
+
+- [x] **T36 — Split large standings tables into multiple vertical columns**
+  - Depends on T14 and T17.
+  - Keep standings with up to 20 teams in one table column, display 21–40 teams in two side-by-side columns, and display 41–64 teams in three side-by-side columns so large leagues make better use of wide screens and require less vertical scrolling.
+  - Divide the standings into contiguous, evenly sized ranking ranges in reading order from left to right; when the team count is not evenly divisible, place the extra row or rows in the earlier columns. For example, a 24-team table must show positions 1–12 in the first column and 13–24 in the second.
+  - Repeat the column headers in each table segment and preserve the same standings columns, values, shared-position display, completed-season ordering, active Overall/Home/Away mode, and average-total presentation.
+  - Keep all segments aligned and visually consistent while using the currently empty horizontal space on wide desktop windows; provide a responsive fallback with contained horizontal overflow or stacking where side-by-side segments cannot remain readable on narrower desktop and tablet widths.
+  - Preserve semantic table markup, accessible header associations, keyboard usability, and a clear reading order across segments.
+  - Add component tests with GIVEN-WHEN-THEN JSDoc for the 20/21 and 40/41 thresholds, even and uneven distributions, contiguous ranking order, mode switching, and shared/final positions.
+  - Use Playwright MCP to verify representative 20-, 24-, 40-, 41-, and 64-team standings at supported desktop and tablet viewport sizes, then run the complete project check.

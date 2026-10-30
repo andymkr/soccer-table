@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 
 import StandingsTable from '@/components/standings/StandingsTable.vue'
+import { getStandingsSegmentCount } from '@/components/standings/standingsSegments'
 import NotFoundState from '@/components/layout/NotFoundState.vue'
 import { useLeagueStore } from '@/stores/league'
 import { useSeasonStore } from '@/stores/season'
@@ -20,6 +21,11 @@ const season = computed(() => {
   const candidate = seasonStore.seasonById(seasonId.value)
   return candidate?.leagueId === leagueId.value ? candidate : undefined
 })
+const pageStyle = computed(() => ({
+  '--standings-columns': getStandingsSegmentCount(
+    season.value?.teams.length ?? 0,
+  ),
+}))
 
 onMounted(() => {
   if (!leagueStore.isLoaded) void leagueStore.load()
@@ -30,6 +36,7 @@ onMounted(() => {
   <section
     v-if="league && season"
     class="table-page"
+    :style="pageStyle"
     aria-labelledby="table-title"
   >
     <RouterLink
@@ -82,8 +89,17 @@ onMounted(() => {
 
 .page-header {
   display: grid;
-  width: min(100%, calc(40.5rem + 2px));
-  margin-inline: auto;
+  width: min(
+    calc(100vw - 4rem),
+    calc(
+      (40.5rem * var(--standings-columns)) +
+        (1px * (var(--standings-columns) - 1)) + 2px
+    )
+  );
+  position: relative;
+  left: 50%;
+  margin-inline: 0;
+  transform: translateX(-50%);
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: 2rem;
@@ -139,6 +155,7 @@ onMounted(() => {
 
 @media (max-width: 720px) {
   .page-header {
+    width: 100%;
     grid-template-columns: 1fr;
   }
 

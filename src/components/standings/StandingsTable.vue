@@ -4,6 +4,9 @@ import { computed, shallowRef } from 'vue'
 import type { Season, TableMode } from '@/domain/models'
 import { calculateSeasonStandings } from '@/domain/seasonStandings'
 
+import { splitStandingsRows } from './standingsSegments'
+import StandingsTableSegment from './StandingsTableSegment.vue'
+
 interface TableModeOption {
   label: string
   shortLabel: string
@@ -31,10 +34,18 @@ const activeOption = computed(
 const tableCaption = computed(
   () => `${activeOption.value.label} standings for ${props.season.name}`,
 )
+const segments = computed(() => splitStandingsRows(standings.value.rows))
+const boardStyle = computed(() => ({
+  '--standings-columns': segments.value.length,
+}))
 </script>
 
 <template>
-  <section class="standings-board" aria-labelledby="standings-board-title">
+  <section
+    class="standings-board"
+    :style="boardStyle"
+    aria-labelledby="standings-board-title"
+  >
     <div class="mode-console">
       <div>
         <p class="console-label">Table channel</p>
@@ -49,7 +60,7 @@ const tableCaption = computed(
           class="mode-button"
           :class="{ 'mode-button--active': activeMode === option.value }"
           :aria-pressed="activeMode === option.value"
-          aria-controls="season-standings-table"
+          aria-controls="season-standings-tables"
           @click="activeMode = option.value"
         >
           {{ option.label }}
@@ -57,57 +68,24 @@ const tableCaption = computed(
       </div>
     </div>
 
-    <div
-      class="table-scroll"
-      role="region"
-      aria-label="Scrollable standings table"
-      tabindex="0"
-    >
-      <table
-        id="season-standings-table"
-        class="standings-table"
-        aria-label="Season standings"
+    <div id="season-standings-tables" class="table-segments">
+      <StandingsTableSegment
+        v-for="(segment, segmentIndex) in segments"
+        :key="segment.rows[0]?.teamId ?? segmentIndex"
+        :table-id="segmentIndex === 0 ? 'season-standings-table' : undefined"
+        :rows="segment.rows"
+        :region-label="
+          segments.length === 1
+            ? 'Scrollable standings table'
+            : `Scrollable standings positions ${segment.startPosition} to ${segment.endPosition}`
+        "
+        :caption="
+          segments.length === 1
+            ? tableCaption
+            : `${tableCaption}, positions ${segment.startPosition}–${segment.endPosition}`
+        "
       >
-        <caption class="visually-hidden">
-          {{
-            tableCaption
-          }}
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col" class="position-column">
-              <abbr title="Position">POS</abbr>
-            </th>
-            <th scope="col" class="team-column">Team</th>
-            <th scope="col"><abbr title="Played">PLD</abbr></th>
-            <th scope="col"><abbr title="Won">W</abbr></th>
-            <th scope="col"><abbr title="Drawn">D</abbr></th>
-            <th scope="col"><abbr title="Lost">L</abbr></th>
-            <th scope="col"><abbr title="Scored for">SF</abbr></th>
-            <th scope="col"><abbr title="Scored against">SA</abbr></th>
-            <th scope="col"><abbr title="Score difference">SD</abbr></th>
-            <th scope="col" class="points-column">
-              <abbr title="Points">PTS</abbr>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in standings.rows" :key="row.teamId">
-            <td class="position-cell">{{ row.position }}</td>
-            <th scope="row" class="team-cell" :title="row.teamName">
-              {{ row.teamName }}
-            </th>
-            <td>{{ row.played }}</td>
-            <td>{{ row.won }}</td>
-            <td>{{ row.drawn }}</td>
-            <td>{{ row.lost }}</td>
-            <td>{{ row.scoredFor }}</td>
-            <td>{{ row.scoredAgainst }}</td>
-            <td>{{ row.scoreDifference }}</td>
-            <td class="points-cell">{{ row.points }}</td>
-          </tr>
-        </tbody>
-      </table>
+      </StandingsTableSegment>
     </div>
 
     <footer class="table-footer" aria-live="polite">
@@ -119,8 +97,17 @@ const tableCaption = computed(
 
 <style scoped>
 .standings-board {
-  width: min(100%, calc(40.5rem + 2px));
-  margin-inline: auto;
+  width: min(
+    calc(100vw - 4rem),
+    calc(
+      (40.5rem * var(--standings-columns)) +
+        (1px * (var(--standings-columns) - 1)) + 2px
+    )
+  );
+  position: relative;
+  left: 50%;
+  margin-inline: 0;
+  transform: translateX(-50%);
   overflow: hidden;
   border: 1px solid var(--color-line-strong);
   border-radius: 0.3rem;
@@ -183,83 +170,13 @@ const tableCaption = computed(
   box-shadow: inset 0 -2px 0 var(--color-floodlight);
 }
 
-.table-scroll {
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
+.table-segments {
+  display: grid;
+  grid-template-columns: repeat(var(--standings-columns), minmax(0, 1fr));
 }
 
-.standings-table {
-  width: 40.5rem;
-  min-width: 40.5rem;
-  border-collapse: collapse;
-  table-layout: fixed;
-  font-variant-numeric: tabular-nums;
-}
-
-.standings-table th,
-.standings-table td {
-  height: 2.85rem;
-  padding: 0.55rem 0.65rem;
-  border-bottom: 1px solid var(--color-line);
-  text-align: center;
-}
-
-.standings-table thead th {
-  height: 2.5rem;
-  background: var(--color-panel);
-  color: var(--color-muted);
-  font: 750 0.65rem/1 var(--font-utility);
-  letter-spacing: 0.07em;
-}
-
-.standings-table abbr {
-  text-decoration: none;
-}
-
-.standings-table tbody td {
-  color: var(--color-soft);
-  font: 650 0.8rem/1 var(--font-utility);
-}
-
-.standings-table tbody tr:last-child th,
-.standings-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-.standings-table tbody tr:hover {
-  background: rgb(100 168 220 / 6%);
-}
-
-.position-column {
-  width: 3.4rem;
-}
-
-.team-column {
-  width: 9.5rem;
-  text-align: left !important;
-}
-
-.points-column {
-  width: 4.25rem;
-  color: var(--color-floodlight) !important;
-}
-
-.position-cell {
-  color: var(--color-muted) !important;
-}
-
-.team-cell {
-  overflow: hidden;
-  color: var(--color-chalk);
-  font: 700 0.9rem/1.2 var(--font-headline);
-  text-align: left !important;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.points-cell {
-  color: var(--color-chalk) !important;
-  font-weight: 850 !important;
+.table-segments > :not(:first-child) {
+  border-left: 1px solid var(--color-line-strong);
 }
 
 .table-footer {
@@ -285,6 +202,10 @@ const tableCaption = computed(
 }
 
 @media (max-width: 720px) {
+  .standings-board {
+    width: 100%;
+  }
+
   .mode-console {
     align-items: stretch;
     flex-direction: column;
@@ -296,6 +217,17 @@ const tableCaption = computed(
 
   .mode-button {
     padding-inline: 0.45rem;
+  }
+}
+
+@media (max-width: 82rem) {
+  .table-segments {
+    grid-template-columns: 1fr;
+  }
+
+  .table-segments > :not(:first-child) {
+    border-top: 1px solid var(--color-line-strong);
+    border-left: 0;
   }
 }
 </style>

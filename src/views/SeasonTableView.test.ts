@@ -80,7 +80,7 @@ describe('season table view', () => {
     )
     expect(screen.getByRole('button', { name: 'Home only' })).toHaveAttribute(
       'aria-controls',
-      'season-standings-table',
+      'season-standings-tables',
     )
     expect(rowText('Northside FC')).toBe('1Northside FC11003123')
     expect(rowText('Riverside United')).toBe('3Riverside United00000000')
@@ -149,6 +149,49 @@ describe('season table view', () => {
       '2Northside FC10100001',
     ])
   })
+
+  /**
+   * GIVEN standings rosters around every column threshold and with even and uneven splits
+   * WHEN the standings page renders each roster
+   * THEN it creates balanced contiguous table segments in left-to-right reading order
+   */
+  it.each([
+    { teamCount: 20, expectedSizes: [20] },
+    { teamCount: 21, expectedSizes: [11, 10] },
+    { teamCount: 24, expectedSizes: [12, 12] },
+    { teamCount: 40, expectedSizes: [20, 20] },
+    { teamCount: 41, expectedSizes: [14, 14, 13] },
+    { teamCount: 64, expectedSizes: [22, 21, 21] },
+  ])(
+    'splits $teamCount teams into $expectedSizes standings rows',
+    async ({ teamCount, expectedSizes }) => {
+      state.seasons = [
+        createSeason({
+          teams: createTeams(teamCount),
+          matches: [],
+        }),
+      ]
+      await renderView()
+
+      const tables = screen.getAllByRole('table', {
+        name: 'Season standings',
+      })
+      expect(tables).toHaveLength(expectedSizes.length)
+      expect(
+        tables.map((table) => within(table).getAllByRole('rowheader').length),
+      ).toEqual(expectedSizes)
+      expect(
+        tables.flatMap((table) =>
+          within(table)
+            .getAllByRole('rowheader')
+            .map((cell) => cell.textContent),
+        ),
+      ).toEqual(createTeams(teamCount).map((team) => team.name))
+      expect(screen.getAllByRole('columnheader')).toHaveLength(
+        expectedSizes.length * 10,
+      )
+    },
+  )
 })
 
 async function renderView(
@@ -234,6 +277,13 @@ function createSeason(overrides: Partial<Season> = {}): Season {
     updatedAt: '2026-07-13T10:00:00.000Z',
     ...overrides,
   }
+}
+
+function createTeams(count: number): Season['teams'] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `threshold-team-${String(index + 1).padStart(2, '0')}`,
+    name: `Threshold Team ${String(index + 1).padStart(2, '0')}`,
+  }))
 }
 
 function createMatch(overrides: Partial<Match> = {}): Match {
